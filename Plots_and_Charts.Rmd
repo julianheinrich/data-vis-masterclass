@@ -1,11 +1,21 @@
 ---
 title: "Data Visualisation Masterclass: Plots & Charts"
-output: html_notebook
+output: 
+  html_notebook:
+    toc: true
+    toc_float: true
 ---
 
-This part of the Data Visualisation Masterclass is intended to teach you some very basic techniques to visualise tabular data, i.e. data arranged in a table. We will refer to columns in the table as dimensions or variables, and to rows of the table as items or data points.
+```{r echo=F}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, fig.width = 4, fig.height = 3)
+```
 
-```{r, include=FALSE}
+This part of the [Data Visualisation Masterclass](datavismasterclass.org) is intended to discuss some very basic techniques to visualise tabular data, i.e. data arranged in a table. We will refer to columns in the table as dimensions or variables, and to rows of the table as items or data points. To see the code that produces all figures, hit the dropdown box at the top right of this document and pick 'Download Rmd'. 
+
+## Setup
+To setup, we need to load the required libraries and setup our example data:
+
+```{r Setup, message=FALSE, warning=FALSE}
 library(ggplot2)
 theme_set(theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank()))
 
@@ -15,6 +25,12 @@ data <- mtcars %>%
   mutate(Transmission = plyr::revalue(factor(Transmission), c("0" = "Automatic", "1" = "Manual"))) %>%
   mutate(Name = as.factor(rownames(mtcars)))
 rownames(data) <- rownames(mtcars)
+```
+
+Our toy data for this course is the classical car data, slightly modified to be more human readable:
+
+```{r}
+knitr::kable(data)
 ```
 
 ## Dotplot
@@ -34,8 +50,48 @@ boxplot <- ggplot(data, aes(x = "", y = Acceleration)) + geom_boxplot() + ylim(1
 boxplot
 ```
 
-## Bar charts
+Boxplots are very useful to visually summarise the *distribution* of values in our sample.
+
+## Histogram
+Probably the most common way to visualise the counts and distributions of variables is a histogram. Here, a user-defined number of equally sized bins is used to count all occurences of values in those bins, and visualise the *count* mapped to the height of a bar:
+```{r message=FALSE, warning=FALSE}
+histogram_default <- ggplot(data, aes(Acceleration)) + geom_histogram(binwidth = 1) + scale_x_continuous(breaks = c(14,16,18,20,24)) + xlim(14,24)
+histogram_default
+```
+
+This is a very effective way to visualise quantitative data, since humans can most accurately compare values if mapped to a *length on a common scale*. However, it's important to understand that not only the bin-width, but also the position or shift of the bins is crucial in determining the final pattern - and its interpretation:
+
+```{r message=F, warning=F}
+histogram <- ggplot(data, aes(Acceleration)) + geom_histogram(breaks = c(seq(14,24))) + scale_x_continuous(breaks = c(14,16,18,20,24)) + xlim(14,24)
+histogram
+```
+
+## Density Plot
+Decreasing the binsize to infinitely narrow bin, we can obtain a continuous model of a density distribution, and map its values to a smooth line:
+
+```{r message=F, warning=F}
+histogram_scaled <- ggplot(data, aes(Acceleration, ..density..)) + geom_histogram(breaks = c(seq(14,24))) + scale_x_continuous(breaks = c(14,16,18,20,24)) + xlim(14,24)
+
+histogram_density <- histogram_scaled + geom_density(aes(color = "red"), show.legend = F)
+histogram_density
+
+```
+
+These plots are often referred to as *kernel density estimates* (KDEs), because - similar to the binsize - they require a *kernel* (typically Gaussian) to model individual samples as continuous distributions and compute the final density from all samples. In fact, the histogram using rectangular bins is a special case of a KDE, using a rectangular kernel.
+
+## Violin Plot
+By mirroring the smooth density distribution along the horizontal axis, we obtain a *violin plot*:
+
 ```{r}
+violin <- ggplot(data, aes(x = "", y = Acceleration)) + geom_violin() + ylim(14,24) + theme(axis.title.x = element_blank(), axis.ticks.y = element_blank(), axis.title = element_blank(), axis.text.y = element_blank()) + coord_flip()
+violin
+```
+
+While the example above is a very basic one, you can imagine adding more layers of visual marks for the median or outlieres, or even a dotplot to show the original data. Then, violin plots are more informative than boxplots, as they can be used to show the same information as a boxplot, *plus* the full density distribution.
+
+## Bar charts
+Bar charts can be used to visualise one quantitative and one categorical variable, by using spatial regions along the horizontal to seperate bars into the different categories. Here, we compute the average economy of cars by their type of transmission: 
+```{r, fig.height=3, fig.width=4, message=FALSE, warning=FALSE}
 economy_by_transmission <- data %>% 
   group_by(Transmission) %>% 
   summarise(Economy = mean(Economy))
@@ -44,7 +100,17 @@ bar_chart_transmission
 ```
 
 ## Stacked bar chart
-Stacked bar charts make no sense for stats that cannot be summed:
+For a single quantitative and two categorical variables, bars can be stacked according the second categorical variable (here further mapped to colour hue):
+```{r}
+count_by_transmission_and_Cylinders <- data %>% 
+  mutate(Cylinders = factor(Cylinders)) 
+stacked_bar_chart_count <- ggplot(count_by_transmission_and_Cylinders, aes(Transmission)) + geom_bar(aes(fill = Cylinders))
+stacked_bar_chart_count
+```
+
+The bottom-most bar (blue) is most effective in visual comparison tasks, because their length is mapped to a common scale. It is more difficult to accurately judge the difference in height of the green and orange bars.
+
+Also note that stacked bar charts make no sense for stats that cannot be summed, such as the average economy of cars:
 ```{r}
 economy_by_transmission_and_Cylinders <- data %>% 
   mutate(Cylinders = factor(Cylinders)) %>%
@@ -54,20 +120,14 @@ stacked_bar_chart_economy <- ggplot(economy_by_transmission_and_Cylinders, aes(T
 stacked_bar_chart_economy
 ```
 
-```{r}
-count_by_transmission_and_Cylinders <- data %>% 
-  mutate(Cylinders = factor(Cylinders)) 
-stacked_bar_chart_count <- ggplot(count_by_transmission_and_Cylinders, aes(Transmission)) + geom_bar(aes(fill = Cylinders))
-stacked_bar_chart_count
-```
 
-Normalized stacked bar charts fill up to 100%:
+In order to get a better sense of the *proportions* of categories, the height of the bars can be normalized to create normalized stacked bar charts:
 ```{r}
 normalized_stacked_bar_chart <- ggplot(count_by_transmission_and_Cylinders, aes(Transmission)) + geom_bar(aes(fill = Cylinders), position = "fill")
 normalized_stacked_bar_chart
 ```
 
-Note that each normalized stacked bar corresponds to a Cartesian version of a pie chart:
+Note that each normalized stacked bar corresponds to a Cartesian version of a pie chart (but is more effective in conveying the data):
 ```{r}
 pie_chart_automatic <- ggplot(filter(count_by_transmission_and_Cylinders, Transmission == "Automatic"), aes(x = factor(1), fill = Cylinders)) + geom_bar(width=1) + coord_polar(theta = "y") + theme(axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank())
 pie_chart_automatic
@@ -77,6 +137,8 @@ pie_chart_automatic
 pie_chart_manual <- ggplot(filter(count_by_transmission_and_Cylinders, Transmission == "Manual"), aes(x = factor(1), fill = Cylinders)) + geom_bar(width=1) + coord_polar(theta = "y") + theme(axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank())
 pie_chart_manual
 ```
+
+
 
 ```{r}
 economy_by_weight <- data %>%
@@ -100,42 +162,6 @@ line_chart_weight
 ```
 
 
-## Histogram
-The default histogram uses weird bins:
-```{r}
-histogram_default <- ggplot(data, aes(Acceleration)) + geom_histogram(binwidth = 1) + scale_x_continuous(breaks = c(14,16,18,20,24)) + xlim(14,24)
-histogram_default
-```
-
-Hence, adjusting not only the binwidth, but also the position can have a huge impact on the visualisation - and its interpretation:
-
-```{r}
-histogram <- ggplot(data, aes(Acceleration)) + geom_histogram(breaks = c(seq(14,24))) + scale_x_continuous(breaks = c(14,16,18,20,24)) + xlim(14,24)
-histogram
-```
-
-The binwidth is a crucial parameter that changes the appearance of the distribution drastically:
-```{r}
-histogram_2 <- ggplot(data, aes(Acceleration)) + geom_histogram(breaks = c(seq(14,24,by=2))) + scale_x_continuous(breaks = c(14,16,18,20,24)) + xlim(14,24)
-histogram_2
-```
-
-## Density Plot
-```{r}
-histogram_scaled <- ggplot(data, aes(Acceleration, ..density..)) + geom_histogram(breaks = c(seq(14,24))) + scale_x_continuous(breaks = c(14,16,18,20,24)) + xlim(14,24)
-histogram_scaled
-
-histogram_density <- histogram_scaled + geom_density(aes(color = "red"), show.legend = F)
-histogram_density
-
-```
-
-## Violin Plot
-
-```{r}
-violin <- ggplot(data, aes(x = "", y = Acceleration)) + geom_violin() + ylim(14,24) + theme(axis.title.x = element_blank(), axis.ticks.y = element_blank(), axis.title = element_blank(), axis.text.y = element_blank()) + coord_flip()
-violin
-```
 
 ## Scatterplot
 
