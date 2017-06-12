@@ -1,0 +1,229 @@
+---
+title: "Data Visualisation Masterclass: Plots & Charts"
+output: html_notebook
+---
+
+This part of the Data Visualisation Masterclass is intended to teach you some very basic techniques to visualise tabular data, i.e. data arranged in a table. We will refer to columns in the table as dimensions or variables, and to rows of the table as items or data points.
+
+```{r, include=FALSE}
+library(ggplot2)
+theme_set(theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank()))
+
+library(dplyr)
+data <- mtcars %>%
+  select(Economy = mpg, Cylinders = cyl, Displacement = disp, Horsepower = hp, Weight = wt, Acceleration = qsec, Transmission = am) %>%
+  mutate(Transmission = plyr::revalue(factor(Transmission), c("0" = "Automatic", "1" = "Manual"))) %>%
+  mutate(Name = as.factor(rownames(mtcars)))
+rownames(data) <- rownames(mtcars)
+```
+
+## Dotplot
+The dotplot is probably the most straight-forward plot for a single, quantitative variable and simply maps a point to every data value along a common scale:
+
+```{r Dotplot, fig.height=1, fig.width=4}
+dotplot <- ggplot(data, aes(x = Acceleration, y = 5)) + geom_point(show.legend = F) + theme(axis.ticks.y = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank()) + xlim(14,23)
+
+dotplot
+```
+
+## Boxplot
+Boxplot or Box-and-whisker-plots show some basic statistical properties of samples from a variable: the median is mapped to a line, the inter-quartile range to the length of a rectangle, and outliers to individual points:
+
+```{r Boxplot, fig.height=1, fig.width=4}
+boxplot <- ggplot(data, aes(x = "", y = Acceleration)) + geom_boxplot() + ylim(14,23) + theme(axis.title.x = element_blank(), axis.ticks.y = element_blank(), axis.title = element_blank(), axis.text.y = element_blank()) + coord_flip() 
+boxplot
+```
+
+## Bar charts
+```{r}
+economy_by_transmission <- data %>% 
+  group_by(Transmission) %>% 
+  summarise(Economy = mean(Economy))
+bar_chart_transmission <- ggplot(economy_by_transmission, aes(Transmission, Economy)) + geom_col()
+bar_chart_transmission
+```
+
+## Stacked bar chart
+Stacked bar charts make no sense for stats that cannot be summed:
+```{r}
+economy_by_transmission_and_Cylinders <- data %>% 
+  mutate(Cylinders = factor(Cylinders)) %>%
+  group_by(Transmission, Cylinders) %>% 
+  summarise(Economy = mean(Economy))
+stacked_bar_chart_economy <- ggplot(economy_by_transmission_and_Cylinders, aes(Transmission, Economy)) + geom_col(aes(fill = Cylinders))
+stacked_bar_chart_economy
+```
+
+```{r}
+count_by_transmission_and_Cylinders <- data %>% 
+  mutate(Cylinders = factor(Cylinders)) 
+stacked_bar_chart_count <- ggplot(count_by_transmission_and_Cylinders, aes(Transmission)) + geom_bar(aes(fill = Cylinders))
+stacked_bar_chart_count
+```
+
+Normalized stacked bar charts fill up to 100%:
+```{r}
+normalized_stacked_bar_chart <- ggplot(count_by_transmission_and_Cylinders, aes(Transmission)) + geom_bar(aes(fill = Cylinders), position = "fill")
+normalized_stacked_bar_chart
+```
+
+Note that each normalized stacked bar corresponds to a Cartesian version of a pie chart:
+```{r}
+pie_chart_automatic <- ggplot(filter(count_by_transmission_and_Cylinders, Transmission == "Automatic"), aes(x = factor(1), fill = Cylinders)) + geom_bar(width=1) + coord_polar(theta = "y") + theme(axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank())
+pie_chart_automatic
+```
+
+```{r}
+pie_chart_manual <- ggplot(filter(count_by_transmission_and_Cylinders, Transmission == "Manual"), aes(x = factor(1), fill = Cylinders)) + geom_bar(width=1) + coord_polar(theta = "y") + theme(axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank())
+pie_chart_manual
+```
+
+```{r}
+economy_by_weight <- data %>%
+  mutate(Weight = cut(Weight, c(seq(1,6)))) %>%
+  group_by(Weight) %>%
+  summarise(Economy = mean(Economy))
+bar_chart_weight <- ggplot(economy_by_weight, aes(Weight, Economy)) + geom_col()
+bar_chart_weight
+```
+
+## Line Charts
+
+```{r}
+line_chart_transmission <- ggplot(economy_by_transmission, aes(Transmission, Economy, group=1)) + geom_line() + ylim(0,25)
+line_chart_transmission
+```
+
+```{r}
+line_chart_weight <- ggplot(economy_by_weight, aes(Weight, Economy, group=1)) + geom_line()
+line_chart_weight
+```
+
+
+## Histogram
+The default histogram uses weird bins:
+```{r}
+histogram_default <- ggplot(data, aes(Acceleration)) + geom_histogram(binwidth = 1) + scale_x_continuous(breaks = c(14,16,18,20,24)) + xlim(14,24)
+histogram_default
+```
+
+Hence, adjusting not only the binwidth, but also the position can have a huge impact on the visualisation - and its interpretation:
+
+```{r}
+histogram <- ggplot(data, aes(Acceleration)) + geom_histogram(breaks = c(seq(14,24))) + scale_x_continuous(breaks = c(14,16,18,20,24)) + xlim(14,24)
+histogram
+```
+
+The binwidth is a crucial parameter that changes the appearance of the distribution drastically:
+```{r}
+histogram_2 <- ggplot(data, aes(Acceleration)) + geom_histogram(breaks = c(seq(14,24,by=2))) + scale_x_continuous(breaks = c(14,16,18,20,24)) + xlim(14,24)
+histogram_2
+```
+
+## Density Plot
+```{r}
+histogram_scaled <- ggplot(data, aes(Acceleration, ..density..)) + geom_histogram(breaks = c(seq(14,24))) + scale_x_continuous(breaks = c(14,16,18,20,24)) + xlim(14,24)
+histogram_scaled
+
+histogram_density <- histogram_scaled + geom_density(aes(color = "red"), show.legend = F)
+histogram_density
+
+```
+
+## Violin Plot
+
+```{r}
+violin <- ggplot(data, aes(x = "", y = Acceleration)) + geom_violin() + ylim(14,24) + theme(axis.title.x = element_blank(), axis.ticks.y = element_blank(), axis.title = element_blank(), axis.text.y = element_blank()) + coord_flip()
+violin
+```
+
+## Scatterplot
+
+```{r}
+scatterplot <- ggplot(data, aes(Acceleration, Weight)) + geom_point()
+scatterplot
+```
+
+```{r}
+contour <- scatterplot + geom_density2d()
+contour
+```
+
+## Bubble Charts
+
+```{r}
+bubble_size <- ggplot(data, aes(Acceleration, Weight)) + geom_point(aes(size = Economy, fill = Transmission))
+bubble_size
+```
+
+```{r}
+bubble <- ggplot(data, aes(Acceleration, Weight)) + geom_point(aes(size = Economy, color = Transmission))
+bubble
+```
+
+```{r}
+
+```
+
+## Faceting
+Faceting is a technique for the repetitive use of visualisations, for example to visualise multiple variables. By juxtaposing dotplots next to each other, one for each variable in the dataset, we can compare the distribution of samples between variables:
+
+```{r}
+data_faceting <- reshape2::melt(select(data, -Transmission), id.vars = c("Name"))
+data_faceting$value <- as.numeric(data_faceting$value)
+dotplot_facets <- ggplot(data_faceting, aes(x = 0, y = value)) + geom_point(show.legend = F) + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank()) + facet_wrap(~variable, scales = "free", nrow = 1)
+
+dotplot_facets
+```
+
+Here, we can see in an instance that there is only three values for `Cylinders`, the outlier in `Horsepower` and `Acceleration`, etc. Obviously we can replace the dotplot with any of the one-dimensional visualisations discussed earlier and obtain a set of boxplots or violins:
+
+```{r}
+boxplot_facets <- ggplot(data_faceting, aes(x = 0, y = value)) + geom_boxplot(show.legend = F) + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank()) + facet_wrap(~variable, scales = "free", nrow = 1)
+
+boxplot_facets
+```
+
+```{r}
+violin_facets <- ggplot(data_faceting, aes(x = 0, y = value)) + geom_violin(show.legend = F) + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank()) + facet_wrap(~variable, scales = "free", nrow = 1)
+
+violin_facets
+```
+
+Note that these visualisation corresponds a projection of our six-dimensional data to six one-dimensional representations, so we can't see any relations between dimensions. 
+
+## Scatterplot Matrix (SPLOM)
+The classical approach to inspect *all* pairwise relations between a set of variables is the scatterplotmatrix (SPLOM). Here, scatterplots are faceted into a symmetric matrix, where every row and column correspond to a single variable, and each cell is composed of a scatterplot of the corresponding variables. Since it is a symmetric matrix, the diagonal would normally show a dotplot of the variable and is often replaced with an explicit, line-based visualisation of the sample distribution. Similarly, only the lower or upper triangle of the matrix is typically used for scatterplots, because the other triangle would show mirrored versions of all scatterplots.  
+
+```{r}
+splom <- GGally::scatmat(data) + theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+splom
+```
+
+Let's store all the plots as pdf files on disk:
+```{r}
+ggsave(filename = "plots/dotplot.pdf", plot = dotplot, width = 4, height = 1, units = "in")
+ggsave(filename = "plots/boxplot.pdf", plot = boxplot, width = 4, height = 1, units = "in")
+ggsave(filename = "plots/bar_chart_transmission.pdf", plot = bar_chart_transmission, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/bar_chart_weight.pdf", plot = bar_chart_weight, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/stacked_bar_chart_economy.pdf", plot = stacked_bar_chart_economy, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/stacked_bar_chart_count.pdf", plot = stacked_bar_chart_count, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/normalized_stacked_bar_chart.pdf", plot = normalized_stacked_bar_chart, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/pie_chart_manual.pdf", plot = pie_chart_manual, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/pie_chart_automatic.pdf", plot = pie_chart_automatic, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/line_chart_transmission.pdf", plot = line_chart_transmission, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/line_chart_weight.pdf", plot = line_chart_weight, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/histogram_default.pdf", plot = histogram_default, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/histogram.pdf", plot = histogram, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/histogram_scaled.pdf", plot = histogram_scaled, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/histogram_density.pdf", plot = histogram_density, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/violin.pdf", plot = violin, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/scatterplot.pdf", plot = scatterplot, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/bubble.pdf", plot = bubble, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/bubble_size.pdf", plot = bubble_size, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/contour.pdf", plot = contour, width = 4, height = 3, units = "in")
+ggsave(filename = "plots/dotplot_factes.pdf", plot = dotplot_facets, width = 10, height = 3, units = "in")
+ggsave(filename = "plots/splom.pdf", plot = splom, width = 8, height = 6, units = "in")
+ggsave(filename = "plots/boxplot_facets.pdf", plot = boxplot_facets, width = 10, height = 3, units = "in")
+ggsave(filename = "plots/violin_facets.pdf", plot = violin_facets, width = 10, height = 3, units = "in")
+```
